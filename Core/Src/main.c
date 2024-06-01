@@ -30,7 +30,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+SPIF_HandleTypeDef hSPIF;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -40,12 +40,9 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-const uint8_t TEXT_Buffer[]={"Explorer STM32F4 SPI TEST"};
-#define SIZE sizeof(TEXT_Buffer)
-	uint32_t FLASH_SIZE;
 volatile	uint8_t keyVal=0;
 volatile uint8_t key_pressed = 0;
-uint8_t datatemp[SIZE];
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -58,47 +55,26 @@ uint8_t datatemp[SIZE];
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 void delay_us(uint32_t udelay);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 // 按键中断处理函数
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-    if (GPIO_Pin == KEY0_Pin) { // 假设按键连接到PA0
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) 
+{
+    if (GPIO_Pin == KEY0_Pin) 
+			{ 
         // 防抖延时
-        HAL_Delay(50);
-        // 检查按键是否仍然按下
+        HAL_Delay(50);    
         if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET) 
 					{
-            keyVal++; // 增加键值
+            keyVal++; 
 						key_pressed=1;
         }
     }
 }
-void Execute_Action(uint8_t keyVal) 
-{
-    switch (keyVal) {
-        case 1:
-            // 执行操作1
-            printf("Key value: 1\r\n");
-						printf("Start Write W25Q128....\r\n");
-						W25QXX_Write((uint8_t *)TEXT_Buffer,FLASH_SIZE-100,SIZE);		//从倒数第100个地址处开始,写入SIZE长度的数据
-						printf("W25Q128 Write Finished!\r\n");	//提示传送完成
-            break;
-        case 2:
-            // 执行操作2
-            printf("Key value: 2\r\n");
-				printf("Start Read W25Q128....\r\n");
-			W25QXX_Read(datatemp,FLASH_SIZE-100,SIZE);					//从倒数第100个地址处开始,读出SIZE个字节
-			printf("The Data Readed Is end   ");	//提示传送完成
-				printf("data:%d\r\n " ,&datatemp);					//显示读到的字符串
-				break;
-        default:
-            // 默认操作
-            printf("Key value: %d\n", keyVal);
-            break;
-    }
-}
+
 /* USER CODE END 0 */
 
 /**
@@ -134,16 +110,50 @@ int main(void)
   MX_SPI1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-	W25QXX_Init();
-	while(W25QXX_ReadID()!=W25Q128)								//检测不到W25Q128
+	if(SPIF_Init(&hSPIF,&hspi1,SPI_CS_GPIO_Port,SPI_CS_Pin)==1)
 	{
-		printf("W25Q128 Check Failed!\r\n");
-		HAL_Delay(500);
-		printf("Please Check!\r\n  ");
-		HAL_Delay(500);
+		printf("w25q128 init success\r\n");
 	}
-	printf("W25Q128 Ready!\r\n"); 
-	FLASH_SIZE=16*1024*1024;	//FLASH 大小为16字节
+	else
+	{
+		printf("w25q128 init error\r\n");
+	}
+	// 定义测试数据
+    uint8_t writeData[256]; // 写入数据的缓冲区
+    uint8_t readData[256]; // 读取数据的缓冲区
+    for (int i = 0; i < sizeof(writeData); ++i) {
+        writeData[i] = i; // 用一些测试数据填充写入缓冲区
+    }
+
+    // 擦除 Flash 部分
+    if (!SPIF_EraseSector(&hSPIF, 0)) {
+        // 擦除失败
+        printf("擦除 Flash失败\r\n  ");
+    }
+
+    // 写入数据Flash
+    if (!SPIF_WriteAddress(&hSPIF, 0, writeData, sizeof(writeData))) {
+        // 写入失败
+         printf("写入 Flash失败\r\n  ");
+    }
+
+    //  Flash 读取数据
+    if (!SPIF_ReadAddress(&hSPIF, 0, readData, sizeof(readData))) {
+        // 读取失败
+        printf("读取 Flash失败\r\n  ");
+    }
+		for (int i = 0; i < sizeof(readData); ++i) 
+		{
+			printf("data:%d ",readData[i]);
+		}
+    // 验证数据
+    for (int i = 0; i < sizeof(writeData); ++i) {
+        if (readData[i] != writeData[i]) {
+           
+             printf("数据不一致\r\n  ");
+        }
+    }
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -154,14 +164,13 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-		if(key_pressed==1)
-		{
-			key_pressed=0;
-			Execute_Action(keyVal);
-		}
-
-  /* USER CODE END 3 */
+//		if(key_pressed==1)
+//		{
+//			key_pressed=0;
+//			Execute_Action(keyVal);
+//		}
 	}
+  /* USER CODE END 3 */
 }
 
 /**
@@ -239,6 +248,7 @@ void delay_us(uint32_t udelay)
         }
     }
 }
+
 /* USER CODE END 4 */
 
 /**

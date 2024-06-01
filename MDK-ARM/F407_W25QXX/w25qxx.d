@@ -33,5 +33,7 @@ f407_w25qxx\w25qxx.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h
 f407_w25qxx\w25qxx.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h
 f407_w25qxx\w25qxx.o: C:\Keil\ARM\ARMCC\Bin\..\include\stdio.h
 f407_w25qxx\w25qxx.o: ../Core/Inc/gpio.h
+f407_w25qxx\w25qxx.o: C:\Keil\ARM\ARMCC\Bin\..\include\stdbool.h
+f407_w25qxx\w25qxx.o: C:\Keil\ARM\ARMCC\Bin\..\include\string.h
+f407_w25qxx\w25qxx.o: ../Core/Inc/SPIF_conf.h
 f407_w25qxx\w25qxx.o: ../Core/Inc/spi.h
-f407_w25qxx\w25qxx.o: ../Core/Inc/usart.h

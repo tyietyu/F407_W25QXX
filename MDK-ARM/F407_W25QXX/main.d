@@ -35,3 +35,6 @@ f407_w25qxx\main.o: ../Core/Inc/spi.h
 f407_w25qxx\main.o: ../Core/Inc/usart.h
 f407_w25qxx\main.o: ../Core/Inc/gpio.h
 f407_w25qxx\main.o: ../Core/Inc/w25qxx.h
+f407_w25qxx\main.o: C:\Keil\ARM\ARMCC\Bin\..\include\stdbool.h
+f407_w25qxx\main.o: C:\Keil\ARM\ARMCC\Bin\..\include\string.h
+f407_w25qxx\main.o: ../Core/Inc/SPIF_conf.h
