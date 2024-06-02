@@ -28,7 +28,10 @@ f407_w25qxx\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_fl
 f407_w25qxx\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ramfunc.h
 f407_w25qxx\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr.h
 f407_w25qxx\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h
+f407_w25qxx\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_sd.h
+f407_w25qxx\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_sdmmc.h
 f407_w25qxx\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h
 f407_w25qxx\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h
 f407_w25qxx\stm32f4xx_it.o: C:\Keil\ARM\ARMCC\Bin\..\include\stdio.h
+f407_w25qxx\stm32f4xx_it.o: C:\Keil\ARM\ARMCC\Bin\..\include\string.h
 f407_w25qxx\stm32f4xx_it.o: ../Core/Inc/stm32f4xx_it.h

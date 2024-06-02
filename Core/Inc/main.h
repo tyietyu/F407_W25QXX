@@ -32,6 +32,7 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -61,6 +62,8 @@ void Error_Handler(void);
 #define KEY0_GPIO_Port GPIOA
 #define SPI_CS_Pin GPIO_PIN_4
 #define SPI_CS_GPIO_Port GPIOA
+#define SD_DEL_Pin GPIO_PIN_3
+#define SD_DEL_GPIO_Port GPIOD
 
 /* USER CODE BEGIN Private defines */
 

@@ -27,5 +27,7 @@ f407_w25qxx\stm32f4xx_hal_dma.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_h
 f407_w25qxx\stm32f4xx_hal_dma.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ramfunc.h
 f407_w25qxx\stm32f4xx_hal_dma.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr.h
 f407_w25qxx\stm32f4xx_hal_dma.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h
+f407_w25qxx\stm32f4xx_hal_dma.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_sd.h
+f407_w25qxx\stm32f4xx_hal_dma.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_sdmmc.h
 f407_w25qxx\stm32f4xx_hal_dma.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h
 f407_w25qxx\stm32f4xx_hal_dma.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h
