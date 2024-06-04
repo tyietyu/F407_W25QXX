@@ -1,20 +1,20 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2024 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2024 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -28,24 +28,27 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "sdio_sdcard.h"
-#include "w25qxx.h" 
+#include "w25qxx.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 SPIF_HandleTypeDef hSPIF;
+FATFS fs;    // 文件系统对象
+FIL file;    // 文件对象
+FRESULT res; // 文件操作结果
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define Size 2048
-uint8_t WriteBuf[Size]={"This write data ok"};
-uint8_t ReadBuf[Size]={"This read data ok"};
+uint8_t WriteBuf[Size] = {"This write data ok"};
+uint8_t ReadBuf[Size] = {"This read data ok"};
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-volatile	uint8_t keyVal=0;
+volatile uint8_t keyVal = 0;
 volatile uint8_t key_pressed = 0;
 
 /* USER CODE END PM */
@@ -63,22 +66,23 @@ void delay_us(uint32_t udelay);
 void w25qxx_test(void);
 void show_sdcard_info(void);
 void sd_test_write(uint32_t secaddr, uint32_t seccnt);
-void sd_test_read(uint32_t secaddr, uint32_t seccnt);
+void sdFatfs_test(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 // 按键中断处理函数
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) 
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-    if (GPIO_Pin == KEY0_Pin) 
-			{ 
+    if (GPIO_Pin == KEY0_Pin)
+    {
         // 防抖延时
-        HAL_Delay(50);    
-        if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_SET) 
-					{
-            keyVal++; 
-						key_pressed=1;
+        HAL_Delay(50);
+
+        if (HAL_GPIO_ReadPin(KEY0_GPIO_Port, GPIO_PIN_0) == GPIO_PIN_SET)
+        {
+            keyVal++;
+            key_pressed = 1;
         }
     }
 }
@@ -102,7 +106,6 @@ int main(void)
 
   /* USER CODE BEGIN Init */
 
-	
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -120,27 +123,30 @@ int main(void)
   MX_USART1_UART_Init();
   MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
-	SPIF_Init(&hSPIF,&hspi1,SPI_CS_GPIO_Port,SPI_CS_Pin);
-	sd_init();
-	
+    SPIF_Init(&hSPIF, &hspi1, SPI_CS_GPIO_Port, SPI_CS_Pin);
+ 
+    SD_Driver.disk_initialize(0);
+
   /* USER CODE END 2 */
-	
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-	 while (sd_init())   /* 检测不到SD卡 */
+    while (sd_init()) 
     {
         printf("check SD error\r\n");
     }
-    show_sdcard_info(); /* 打印SD卡相关信息 */
-	
-  while (1)
-  {
+
+    show_sdcard_info(); 
+    sdFatfs_test();     
+
+    while (1)
+    {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-		// sd_test_read(0,1);  /* 从0扇区读取1*512字节的内容 */
-	}
+    }
+
   /* USER CODE END 3 */
 }
 
@@ -192,59 +198,67 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 void delay_us(uint32_t us)
 {
-		uint32_t startTick = SysTick->VAL; // 获取当前SysTick的值
-    uint32_t delayTicks = (SystemCoreClock / 1000000) * us; // 计算所需的SysTick计数
-
-    // 等待直到SysTick计数达到所需的延迟
-    while ((SysTick->VAL - startTick) < delayTicks) 
-		{
+    uint32_t startTick = SysTick->VAL;                      
+    uint32_t delayTicks = (SystemCoreClock / 1000000) * us; 
+    while ((SysTick->VAL - startTick) < delayTicks)
+    {
         // 空循环，等待SysTick递减
     }
 }
 
 void w25qxx_test(void)
 {
-		if(SPIF_Init(&hSPIF,&hspi1,SPI_CS_GPIO_Port,SPI_CS_Pin)==1)
-	{
-		printf("w25q128 init success\r\n");
-	}
-	else
-	{
-		printf("w25q128 init error\r\n");
-	}
-	// 定义测试数据
-    uint8_t writeData[256]={0}; // 写入数据的缓冲区
-    uint8_t readData[256]={0}; // 读取数据的缓冲区
-    for (int i = 0; i < sizeof(writeData); ++i) {
+    if (SPIF_Init(&hSPIF, &hspi1, SPI_CS_GPIO_Port, SPI_CS_Pin) == 1)
+    {
+        printf("w25q128 init success\r\n");
+    }
+    else
+    {
+        printf("w25q128 init error\r\n");
+    }
+
+    // 定义测试数据
+    uint8_t writeData[256] = {0}; // 写入数据的缓冲区
+    uint8_t readData[256] = {0};  // 读取数据的缓冲区
+
+    for (int i = 0; i < sizeof(writeData); ++i)
+    {
         writeData[i] = i; // 用一些测试数据填充写入缓冲区
     }
 
     // 擦除 Flash 部分
-    if (!SPIF_EraseSector(&hSPIF, 0)) {
+    if (!SPIF_EraseSector(&hSPIF, 0))
+    {
         // 擦除失败
         printf("擦除 Flash失败\r\n  ");
     }
 
     // 写入数据Flash
-    if (!SPIF_WriteAddress(&hSPIF, 0, writeData, sizeof(writeData))) {
+    if (!SPIF_WriteAddress(&hSPIF, 0, writeData, sizeof(writeData)))
+    {
         // 写入失败
-         printf("写入 Flash失败\r\n  ");
+        printf("写入 Flash失败\r\n  ");
     }
 
     //  Flash 读取数据
-    if (!SPIF_ReadAddress(&hSPIF, 0, readData, sizeof(readData))) {
+    if (!SPIF_ReadAddress(&hSPIF, 0, readData, sizeof(readData)))
+    {
         // 读取失败
         printf("读取 Flash失败\r\n  ");
     }
-		for (int i = 0; i < sizeof(readData); ++i) 
-		{
-			printf("data:%d ",readData[i]);
-		}
+
+    for (int i = 0; i < sizeof(readData); ++i)
+    {
+        printf("data:%d ", readData[i]);
+    }
+
     // 验证数据
-    for (int i = 0; i < sizeof(writeData); ++i) {
-        if (readData[i] != writeData[i]) {
-           
-             printf("数据不一致\r\n  ");
+    for (int i = 0; i < sizeof(writeData); ++i)
+    {
+        if (readData[i] != writeData[i])
+        {
+
+            printf("数据不一致\r\n  ");
         }
     }
 }
@@ -254,7 +268,7 @@ void show_sdcard_info(void)
     HAL_SD_CardCIDTypeDef sd_card_cid;
 
     HAL_SD_GetCardCID(&g_sdcard_handler, &sd_card_cid); /* 获取CID */
-    get_sd_card_info(&g_sd_card_info_handle);           /* 获取SD卡信息 */
+    get_sd_card_info(&g_sd_card_info_handle);           /* 获取SD卡信�? */
 
     switch (g_sd_card_info_handle.CardType)
     {
@@ -274,70 +288,53 @@ void show_sdcard_info(void)
     case CARD_SDHC_SDXC:
         printf("Card Type:SDHC\r\n");
         break;
-    default: break;
+
+    default:
+        break;
     }
 
-    printf("Card ManufacturerID:%d\r\n", sd_card_cid.ManufacturerID);                   /* 制造商ID */
-    printf("Card RCA:%d\r\n", g_sd_card_info_handle.RelCardAdd);                        /* 卡相对地址 */
-    printf("LogBlockNbr:%d \r\n", (uint32_t)(g_sd_card_info_handle.LogBlockNbr));       /* 显示逻辑块数量 */
-    printf("LogBlockSize:%d \r\n", (uint32_t)(g_sd_card_info_handle.LogBlockSize));     /* 显示逻辑块大小 */
-    printf("Card Capacity:%d MB\r\n", (uint32_t)SD_TOTAL_SIZE_MB(&g_sdcard_handler));   /* 显示容量 */
-    printf("Card BlockSize:%d\r\n\r\n", g_sd_card_info_handle.BlockSize);               /* 显示块大小 */
+    printf("Card ManufacturerID:%d\r\n", sd_card_cid.ManufacturerID);                 /* 制造商ID */
+    printf("Card RCA:%d\r\n", g_sd_card_info_handle.RelCardAdd);                      /* 卡相对地址 */
+    printf("LogBlockNbr:%d \r\n", (uint32_t)(g_sd_card_info_handle.LogBlockNbr));     /* 显示逻辑块数 */
+    printf("LogBlockSize:%d \r\n", (uint32_t)(g_sd_card_info_handle.LogBlockSize));   /* 显示逻辑块大*/
+    printf("Card Capacity:%d MB\r\n", (uint32_t)SD_TOTAL_SIZE_MB(&g_sdcard_handler)); /* 显示容量 */
+    printf("Card BlockSize:%d\r\n\r\n", g_sd_card_info_handle.BlockSize);             /* 显示块大小*/
 }
-/**
- * @brief       测试SD卡的读取
- *   @note      从secaddr地址开始,读取seccnt个扇区的数据
- * @param       secaddr : 扇区地址
- * @param       seccnt  : 扇区数
- * @retval      无
- */
-void sd_test_read(uint32_t secaddr, uint32_t seccnt)
+
+void sdFatfs_test(void)
 {
-    uint32_t i;
-    uint8_t *buf;
-    uint8_t sta = 0;
-
-    buf = ReadBuf;      
-    sta = sd_read_disk(buf, secaddr, seccnt);   /* 读取secaddr扇区开始的内容 */
-
-    if (sta == 0)
+    FRESULT mount_res = f_mount(&fs, "0:", 1);
+    if (mount_res != FR_OK)
     {
-        printf("SECTOR %d DATA:\r\n", secaddr);
-        for (i = 0; i < seccnt * 512; i++)
-        {
-            printf("%x ", buf[i]);              /* 打印secaddr开始的扇区数据 */
-        }
-        printf("\r\nDATA ENDED\r\n");     
+        printf("fatfs mount error: %d\n", mount_res);
     }
-    else
+    res = f_open(&file, "0:/test.txt", FA_READ);
+    if (res != FR_OK)
     {
-        printf("err:%d\r\n", sta);
+        printf("fatfs open error: %d\n", res);
     }
+    UINT br;
+    char buffer[16];
+    f_read(&file, buffer, sizeof(buffer), &br);
+    printf("读取到的数据: %s\n", buffer);
+    f_close(&file);
 }
 
-/**
- * @brief       测试SD卡的写入
- *   @note      从secaddr地址开始,写入seccnt个扇区的数据
- *              慎用!! 最好写全是0XFF的扇区,否则可能损坏SD卡.
- *
- * @param       secaddr : 扇区地址
- * @param       seccnt  : 扇区数
- * @retval      无
- */
+
 void sd_test_write(uint32_t secaddr, uint32_t seccnt)
 {
     uint32_t i;
     uint8_t *buf;
     uint8_t sta = 0;
 
-    buf = WriteBuf;       /* 从SRAM申请内存 */
+    buf = WriteBuf; 
 
-    for (i = 0; i < seccnt * 512; i++)          /* 初始化写入的数据,是3的倍数. */
+    for (i = 0; i < seccnt * 512; i++) 
     {
         buf[i] = i * 3;
     }
 
-    sta = sd_write_disk(buf, secaddr, seccnt);  /* 从secaddr扇区开始写入seccnt个扇区内容 */
+    sta = sd_write_disk(buf, secaddr, seccnt); 
 
     if (sta == 0)
     {
@@ -357,11 +354,13 @@ void sd_test_write(uint32_t secaddr, uint32_t seccnt)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
-  {
-  }
+    /* User can add his own implementation to report the HAL error return state */
+    __disable_irq();
+
+    while (1)
+    {
+    }
+
   /* USER CODE END Error_Handler_Debug */
 }
 
@@ -376,8 +375,8 @@ void Error_Handler(void)
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+    /* User can add his own implementation to report the file name and line number,
+       ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

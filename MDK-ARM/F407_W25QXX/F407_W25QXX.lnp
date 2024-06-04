@@ -1,6 +1,7 @@
 --cpu=Cortex-M4.fp.sp
 "f407_w25qxx\startup_stm32f407xx.o"
 "f407_w25qxx\w25qxx.o"
+"f407_w25qxx\sdio_sdcard.o"
 "f407_w25qxx\main.o"
 "f407_w25qxx\gpio.o"
 "f407_w25qxx\dma.o"
@@ -9,7 +10,6 @@
 "f407_w25qxx\usart.o"
 "f407_w25qxx\stm32f4xx_it.o"
 "f407_w25qxx\stm32f4xx_hal_msp.o"
-"f407_w25qxx\sdio_sdcard.o"
 "f407_w25qxx\stm32f4xx_hal_rcc.o"
 "f407_w25qxx\stm32f4xx_hal_rcc_ex.o"
 "f407_w25qxx\stm32f4xx_hal_flash.o"

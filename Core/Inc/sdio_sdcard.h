@@ -71,10 +71,10 @@
 
 /*  
  *  SD传输时钟分频，由于HAL库运行效率低，很容易产生上溢（读SD卡时）/下溢错误（写SD卡时）
- *  使用4bit模式时，需降低SDIO时钟频率，将该宏改为 1，SDIO时钟频率：48/( SDIO_TRANSF_CLK_DIV + 2 ) = 16M * 4bit = 64Mbps 
- *  使用1bit模式时，该宏SDIO_TRANSF_CLK_DIV改为 0，SDIO时钟频率：48/( SDIO_TRANSF_CLK_DIV + 2 ) = 24M * 1bit = 24Mbps 
+ *  使用4bit模式时，需降低SDIO时钟频率，将该宏改为 10，SDIO时钟频率：84/( SDIO_TRANSF_CLK_DIV + 2 ) = 16M * 4bit = 64Mbps 
+ *  使用1bit模式时，该宏SDIO_TRANSF_CLK_DIV改为 0，SDIO时钟频率：84/( SDIO_TRANSF_CLK_DIV + 2 ) = 24M * 1bit = 24Mbps 
  */
-#define  SDIO_TRANSF_CLK_DIV        1   
+#define  SDIO_TRANSF_CLK_DIV        10   
 /******************************************************************************************/
 
 extern SD_HandleTypeDef        g_sdcard_handler;        /* SD卡句柄 */

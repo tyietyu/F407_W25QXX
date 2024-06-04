@@ -7,7 +7,7 @@ f407_w25qxx\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_def.h
 f407_w25qxx\main.o: ../Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f4xx.h
 f407_w25qxx\main.o: ../Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f407xx.h
 f407_w25qxx\main.o: ../Drivers/CMSIS/Include/core_cm4.h
-f407_w25qxx\main.o: C:\Keil\ARM\ARMCC\Bin\..\include\stdint.h
+f407_w25qxx\main.o: D:\Program\Keil\ARM\ARMCC\Bin\..\include\stdint.h
 f407_w25qxx\main.o: ../Drivers/CMSIS/Include/cmsis_version.h
 f407_w25qxx\main.o: ../Drivers/CMSIS/Include/cmsis_compiler.h
 f407_w25qxx\main.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
@@ -15,7 +15,7 @@ f407_w25qxx\main.o: ../Drivers/CMSIS/Include/mpu_armv7.h
 f407_w25qxx\main.o: ../Drivers/CMSIS/Device/ST/STM32F4xx/Include/system_stm32f4xx.h
 f407_w25qxx\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h
 f407_w25qxx\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
-f407_w25qxx\main.o: C:\Keil\ARM\ARMCC\Bin\..\include\stddef.h
+f407_w25qxx\main.o: D:\Program\Keil\ARM\ARMCC\Bin\..\include\stddef.h
 f407_w25qxx\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc_ex.h
 f407_w25qxx\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio.h
 f407_w25qxx\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio_ex.h
@@ -32,8 +32,8 @@ f407_w25qxx\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_sd.h
 f407_w25qxx\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_sdmmc.h
 f407_w25qxx\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h
 f407_w25qxx\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h
-f407_w25qxx\main.o: C:\Keil\ARM\ARMCC\Bin\..\include\stdio.h
-f407_w25qxx\main.o: C:\Keil\ARM\ARMCC\Bin\..\include\string.h
+f407_w25qxx\main.o: D:\Program\Keil\ARM\ARMCC\Bin\..\include\stdio.h
+f407_w25qxx\main.o: D:\Program\Keil\ARM\ARMCC\Bin\..\include\string.h
 f407_w25qxx\main.o: ../Core/Inc/dma.h
 f407_w25qxx\main.o: ../FATFS/App/fatfs.h
 f407_w25qxx\main.o: ../Middlewares/Third_Party/FatFs/src/ff.h
@@ -41,7 +41,7 @@ f407_w25qxx\main.o: ../Middlewares/Third_Party/FatFs/src/integer.h
 f407_w25qxx\main.o: ../FATFS/Target/ffconf.h
 f407_w25qxx\main.o: ../FATFS/Target/bsp_driver_sd.h
 f407_w25qxx\main.o: ../FATFS/Target/fatfs_platform.h
-f407_w25qxx\main.o: C:\Keil\ARM\ARMCC\Bin\..\include\stdlib.h
+f407_w25qxx\main.o: D:\Program\Keil\ARM\ARMCC\Bin\..\include\stdlib.h
 f407_w25qxx\main.o: ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h
 f407_w25qxx\main.o: ../Middlewares/Third_Party/FatFs/src/diskio.h
 f407_w25qxx\main.o: ../FATFS/Target/sd_diskio.h
@@ -51,5 +51,5 @@ f407_w25qxx\main.o: ../Core/Inc/usart.h
 f407_w25qxx\main.o: ../Core/Inc/gpio.h
 f407_w25qxx\main.o: ../Core/Inc/sdio_sdcard.h
 f407_w25qxx\main.o: ../Core/Inc/w25qxx.h
-f407_w25qxx\main.o: C:\Keil\ARM\ARMCC\Bin\..\include\stdbool.h
+f407_w25qxx\main.o: D:\Program\Keil\ARM\ARMCC\Bin\..\include\stdbool.h
 f407_w25qxx\main.o: ../Core/Inc/SPIF_conf.h
