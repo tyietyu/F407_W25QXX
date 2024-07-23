@@ -22,6 +22,7 @@
 #include "stm32f4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "ov7725.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,7 +42,8 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-
+extern uint8_t ov_frame;
+uint8_t ov_sta=0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -58,6 +60,8 @@
 extern DMA_HandleTypeDef hdma_sdio_tx;
 extern DMA_HandleTypeDef hdma_sdio_rx;
 extern SD_HandleTypeDef hsd;
+extern TIM_HandleTypeDef htim3;
+extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -201,6 +205,54 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
+  * @brief This function handles TIM3 global interrupt.
+  */
+void TIM3_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM3_IRQn 0 */
+	 if (__HAL_TIM_GET_FLAG(&htim3, TIM_FLAG_UPDATE) != RESET) {
+        if (__HAL_TIM_GET_IT_SOURCE(&htim3, TIM_IT_UPDATE) != RESET) {
+            __HAL_TIM_CLEAR_IT(&htim3, TIM_IT_UPDATE);
+            ov_frame = 0;
+        }
+    }
+  /* USER CODE END TIM3_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim3);
+  /* USER CODE BEGIN TIM3_IRQn 1 */
+
+  /* USER CODE END TIM3_IRQn 1 */
+}
+
+/**
+  * @brief This function handles EXTI line[15:10] interrupts.
+  */
+void EXTI15_10_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI15_10_IRQn 0 */
+	 if (__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_15))
+    {
+        if (ov_sta < 2)
+        {
+            if (ov_sta == 0)
+            {
+                OV7725_WRST_LOW;	 	// 复位写指针		  		 
+                OV7725_WRST_HIGH;	
+                OV7725_WREN_HIGH;		// 允许写入FIFO
+            }
+            else 
+                OV7725_WREN_LOW;	    // 禁止写入FIFO 	 
+            ov_sta++;
+        }
+        __HAL_GPIO_EXTI_CLEAR_FLAG(GPIO_PIN_15);
+    }
+  /* USER CODE END EXTI15_10_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(VSYNC_Pin);
+  /* USER CODE BEGIN EXTI15_10_IRQn 1 */
+
+  /* USER CODE END EXTI15_10_IRQn 1 */
+}
+
+/**
   * @brief This function handles SDIO global interrupt.
   */
 void SDIO_IRQHandler(void)
@@ -226,6 +278,20 @@ void DMA2_Stream3_IRQHandler(void)
   /* USER CODE BEGIN DMA2_Stream3_IRQn 1 */
 
   /* USER CODE END DMA2_Stream3_IRQn 1 */
+}
+
+/**
+  * @brief This function handles USB On The Go FS global interrupt.
+  */
+void OTG_FS_IRQHandler(void)
+{
+  /* USER CODE BEGIN OTG_FS_IRQn 0 */
+
+  /* USER CODE END OTG_FS_IRQn 0 */
+  HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
+  /* USER CODE BEGIN OTG_FS_IRQn 1 */
+
+  /* USER CODE END OTG_FS_IRQn 1 */
 }
 
 /**

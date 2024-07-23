@@ -22,13 +22,17 @@
 #include "fatfs.h"
 #include "sdio.h"
 #include "spi.h"
+#include "tim.h"
 #include "usart.h"
+#include "usb_otg.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "sdio_sdcard.h"
 #include "w25qxx.h"
+#include "OV7725.h"
+#include "sccb.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -56,12 +60,14 @@ volatile uint8_t key_pressed = 0;
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+extern uint8_t ov_sta;	
+extern uint8_t ov_frame;	
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+void delay_us(uint32_t nus);
 void delay_us(uint32_t udelay);
 void w25qxx_test(void);
 void show_sdcard_info(void);
@@ -86,6 +92,50 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         }
     }
 }
+void OV7725_camera_refresh(void)
+{
+	uint32_t i,j;
+ 	uint16_t color;
+	if(ov_sta==2)
+	{
+		LCD_Scan_Dir(U2D_L2R);		//从上到下,从左到右 
+		LCD_Set_Window((lcddev.width-OV7725_WINDOW_WIDTH)/2,(lcddev.height-OV7725_WINDOW_HEIGHT)/2,OV7725_WINDOW_WIDTH,OV7725_WINDOW_HEIGHT);//将显示区域设置到屏幕中央
+		if(lcddev.id==0X1963)
+			LCD_Set_Window((lcddev.width-OV7725_WINDOW_WIDTH)/2,(lcddev.height-OV7725_WINDOW_HEIGHT)/2,OV7725_WINDOW_HEIGHT,OV7725_WINDOW_WIDTH);//将显示区域设置到屏幕中央
+		LCD_WriteRAM_Prepare();     //开始写入GRAM
+		OV7725_CS_LOW;		
+		OV7725_RRST_LOW;				//开始复位读指针 
+		OV7725_RCK_LOW;
+		OV7725_RCK_HIGH;
+		OV7725_RCK_LOW;
+		OV7725_RRST_HIGH;				//复位读指针结束 
+		OV7725_RCK_HIGH; 
+		for(i=0;i<OV7725_WINDOW_HEIGHT;i++)
+		{
+			for(j=0;j<OV7725_WINDOW_WIDTH;j++)
+			{
+				GPIOB->CRL=0X88888888;
+				OV7725_RCK_LOW;
+				color=OV7725_DATA;	//读数据
+				OV7725_RCK_HIGH; 
+				color<<=8;  
+				OV7725_RCK_LOW;
+				color|=OV7725_DATA;	//读数据
+				OV7725_RCK_HIGH;
+				GPIOB->CRL=0X33333333;
+				LCD_WR_DATA(color); 
+			}
+		}
+		OV7725_CS_HIGH;
+		OV7725_RCK_LOW;
+		OV7725_RCK_HIGH;
+		EXTI->PR=1<<15;
+ 		ov_sta=0;					//清零帧中断标记
+		ov_frame++; 
+		LCD_Scan_Dir(DFT_SCAN_DIR);	//恢复默认扫描方向 
+	} 
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -120,12 +170,13 @@ int main(void)
   MX_DMA_Init();
   MX_SPI1_Init();
   MX_SDIO_SD_Init();
-  MX_USART1_UART_Init();
   MX_FATFS_Init();
+  MX_USART1_UART_Init();
+  MX_USB_OTG_FS_PCD_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
-    SPIF_Init(&hSPIF, &hspi1, SPI_CS_GPIO_Port, SPI_CS_Pin);
- 
-    SD_Driver.disk_initialize(0);
+  SPIF_Init(&hSPIF, &hspi1, SPI_CS_GPIO_Port, SPI_CS_Pin);
+  SD_Driver.disk_initialize(0);
 
   /* USER CODE END 2 */
 
@@ -345,6 +396,8 @@ void sd_test_write(uint32_t secaddr, uint32_t seccnt)
         printf("err:%d\r\n", sta);
     }
 }
+
+
 /* USER CODE END 4 */
 
 /**

@@ -7,7 +7,9 @@
 "f407_w25qxx\dma.o"
 "f407_w25qxx\sdio.o"
 "f407_w25qxx\spi.o"
+"f407_w25qxx\tim.o"
 "f407_w25qxx\usart.o"
+"f407_w25qxx\usb_otg.o"
 "f407_w25qxx\stm32f4xx_it.o"
 "f407_w25qxx\stm32f4xx_hal_msp.o"
 "f407_w25qxx\stm32f4xx_hal_rcc.o"
@@ -29,6 +31,9 @@
 "f407_w25qxx\stm32f4xx_hal_tim.o"
 "f407_w25qxx\stm32f4xx_hal_tim_ex.o"
 "f407_w25qxx\stm32f4xx_hal_uart.o"
+"f407_w25qxx\stm32f4xx_hal_pcd.o"
+"f407_w25qxx\stm32f4xx_hal_pcd_ex.o"
+"f407_w25qxx\stm32f4xx_ll_usb.o"
 "f407_w25qxx\system_stm32f4xx.o"
 "f407_w25qxx\bsp_driver_sd.o"
 "f407_w25qxx\sd_diskio.o"
@@ -38,6 +43,8 @@
 "f407_w25qxx\ff.o"
 "f407_w25qxx\ff_gen_drv.o"
 "f407_w25qxx\syscall.o"
+"f407_w25qxx\ov7725.o"
+"f407_w25qxx\sccb.o"
 --library_type=microlib --strict --scatter "F407_W25QXX\F407_W25QXX.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers
