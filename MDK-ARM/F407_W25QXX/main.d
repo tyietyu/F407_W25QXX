@@ -57,8 +57,11 @@ f407_w25qxx\main.o: ../Core/Inc/tim.h
 f407_w25qxx\main.o: ../Core/Inc/usart.h
 f407_w25qxx\main.o: ../Core/Inc/usb_otg.h
 f407_w25qxx\main.o: ../Core/Inc/gpio.h
+f407_w25qxx\main.o: ../LCD/lcd.h
+f407_w25qxx\main.o: ../LCD/lcd_init.h
+f407_w25qxx\main.o: ../LCD/pic.h
 f407_w25qxx\main.o: ../Core/Inc/sdio_sdcard.h
 f407_w25qxx\main.o: ../Core/Inc/w25qxx.h
 f407_w25qxx\main.o: ../Core/Inc/SPIF_conf.h
-f407_w25qxx\main.o: ../OV7725/ov7725.h
+f407_w25qxx\main.o: ../OV7725/OV7725.h
 f407_w25qxx\main.o: ../OV7725/sccb.h

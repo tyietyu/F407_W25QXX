@@ -29,6 +29,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "lcd.h"
+#include "lcd_init.h"
+#include "pic.h"
 #include "sdio_sdcard.h"
 #include "w25qxx.h"
 #include "OV7725.h"
@@ -92,6 +95,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         }
     }
 }
+/*
 void OV7725_camera_refresh(void)
 {
 	uint32_t i,j;
@@ -135,6 +139,7 @@ void OV7725_camera_refresh(void)
 		LCD_Scan_Dir(DFT_SCAN_DIR);	//恢复默认扫描方向 
 	} 
 }
+*/
 
 /* USER CODE END 0 */
 
@@ -169,33 +174,37 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_SPI1_Init();
+  MX_SPI2_Init();
+  MX_TIM3_Init();
   MX_SDIO_SD_Init();
   MX_FATFS_Init();
   MX_USART1_UART_Init();
   MX_USB_OTG_FS_PCD_Init();
-  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   SPIF_Init(&hSPIF, &hspi1, SPI_CS_GPIO_Port, SPI_CS_Pin);
   SD_Driver.disk_initialize(0);
-
+  LCD_Init();
+  LCD_Fill(0,0,LCD_W,LCD_H,WHITE);
+  LCD_ShowString(24,30," hello lcd !",RED,WHITE,16,0);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-    while (sd_init()) 
-    {
-        printf("check SD error\r\n");
-    }
+//    while (sd_init()) 
+//    {
+//        printf("check SD error\r\n");
+//    }
 
-    show_sdcard_info(); 
-    sdFatfs_test();     
+    //show_sdcard_info(); 
+    //sdFatfs_test();     
 
     while (1)
     {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+		
     }
 
   /* USER CODE END 3 */
