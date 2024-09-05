@@ -1,5 +1,8 @@
 f407_w25qxx\lcd.o: ..\LCD\lcd.c
 f407_w25qxx\lcd.o: ..\LCD\lcd.h
+f407_w25qxx\lcd.o: ..\LCD\fonts.h
+f407_w25qxx\lcd.o: D:\Program\Keil\ARM\ARMCC\Bin\..\include\stdint.h
+f407_w25qxx\lcd.o: ..\LCD\lcd_cfg.h
 f407_w25qxx\lcd.o: ../Core/Inc/main.h
 f407_w25qxx\lcd.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h
 f407_w25qxx\lcd.o: ../Core/Inc/stm32f4xx_hal_conf.h
@@ -8,7 +11,6 @@ f407_w25qxx\lcd.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_def.h
 f407_w25qxx\lcd.o: ../Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f4xx.h
 f407_w25qxx\lcd.o: ../Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f407xx.h
 f407_w25qxx\lcd.o: ../Drivers/CMSIS/Include/core_cm4.h
-f407_w25qxx\lcd.o: D:\Program\Keil\ARM\ARMCC\Bin\..\include\stdint.h
 f407_w25qxx\lcd.o: ../Drivers/CMSIS/Include/cmsis_version.h
 f407_w25qxx\lcd.o: ../Drivers/CMSIS/Include/cmsis_compiler.h
 f407_w25qxx\lcd.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
@@ -41,7 +43,6 @@ f407_w25qxx\lcd.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pcd_ex.h
 f407_w25qxx\lcd.o: D:\Program\Keil\ARM\ARMCC\Bin\..\include\stdio.h
 f407_w25qxx\lcd.o: D:\Program\Keil\ARM\ARMCC\Bin\..\include\string.h
 f407_w25qxx\lcd.o: D:\Program\Keil\ARM\ARMCC\Bin\..\include\stdbool.h
-f407_w25qxx\lcd.o: ..\LCD\lcd_init.h
-f407_w25qxx\lcd.o: ..\LCD\lcdfont.h
 f407_w25qxx\lcd.o: ../Core/Inc/spi.h
-f407_w25qxx\lcd.o: ../Core/Inc/dma.h
+f407_w25qxx\lcd.o: D:\Program\Keil\ARM\ARMCC\Bin\..\include\stdlib.h
+f407_w25qxx\lcd.o: ../Core/Inc/gpio.h

@@ -58,7 +58,8 @@ f407_w25qxx\main.o: ../Core/Inc/usart.h
 f407_w25qxx\main.o: ../Core/Inc/usb_otg.h
 f407_w25qxx\main.o: ../Core/Inc/gpio.h
 f407_w25qxx\main.o: ../LCD/lcd.h
-f407_w25qxx\main.o: ../LCD/lcd_init.h
+f407_w25qxx\main.o: ../LCD/fonts.h
+f407_w25qxx\main.o: ../LCD/lcd_cfg.h
 f407_w25qxx\main.o: ../LCD/pic.h
 f407_w25qxx\main.o: ../Core/Inc/sdio_sdcard.h
 f407_w25qxx\main.o: ../Core/Inc/w25qxx.h

@@ -1,529 +1,887 @@
 #include "lcd.h"
-#include "lcd_init.h"
-#include "lcdfont.h"
-#include "spi.h"
-#include "dma.h"
+#include "lcd_cfg.h"
+#include "gpio.h"
 
-extern SPI_HandleTypeDef hspi2;
-/******************************************************************************
-      函数说明：在指定区域填充颜色
-      入口数据：xsta,ysta   起始坐标
-                xend,yend   终止坐标
-                                color       要填充的颜色
-      返回值：  无
-******************************************************************************/
-void LCD_Fill(u16 xsta, u16 ysta, u16 xend, u16 yend, u16 color)
+#define TFT_RES_L()  HAL_GPIO_WritePin(ST7735_RES_GPIO_Port, ST7735_RES_Pin,GPIO_PIN_RESET)   //RES
+#define TFT_RES_H()  HAL_GPIO_WritePin(ST7735_RES_GPIO_Port, ST7735_RES_Pin,GPIO_PIN_SET)
+
+#define TFT_DC_C()   HAL_GPIO_WritePin(ST7735_DC_GPIO_Port, ST7735_DC_Pin,GPIO_PIN_RESET)//DC
+#define TFT_DC_D()   HAL_GPIO_WritePin(ST7735_DC_GPIO_Port, ST7735_DC_Pin,GPIO_PIN_SET)
+ 		     
+#define TFT_CS_L()   HAL_GPIO_WritePin(ST7735_CS_GPIO_Port, ST7735_CS_Pin,GPIO_PIN_RESET)//CS
+#define TFT_CS_H()   HAL_GPIO_WritePin(ST7735_CS_GPIO_Port, ST7735_CS_Pin,GPIO_PIN_SET)
+
+#define TFT_BL_L()  HAL_GPIO_WritePin(ST7735_BL_GPIO_Port, ST7735_BL_Pin,GPIO_PIN_RESET)//BLK
+#define TFT_BL_H()  HAL_GPIO_WritePin(ST7735_BL_GPIO_Port, ST7735_BL_Pin,GPIO_PIN_SET)
+
+
+#define ST7735_COLOR565(r, g, b) (((r & 0xF8) << 8) | ((g & 0xFC) << 3) | ((b & 0xF8) >> 3))
+#define SWAP_INT16_T(a, b) { int16_t t = a; a = b; b = t; }
+#define DELAY 0x80
+
+#if defined(ST7735_1_8_DEFAULT_ORIENTATION) || defined(ST7735S_1_8_DEFAULT_ORIENTATION)
+static uint8_t _data_rotation[4] = { ST7735_MADCTL_MX, ST7735_MADCTL_MY, ST7735_MADCTL_MV, ST7735_MADCTL_RGB };
+#endif
+
+#if defined(ST7735_1_44_DEFAULT_ORIENTATION) || defined(ST7735_MINI_DEFAULT_ORIENTATION)
+static uint8_t _data_rotation[4] = { ST7735_MADCTL_MX, ST7735_MADCTL_MY, ST7735_MADCTL_MV, ST7735_MADCTL_BGR };
+#endif
+
+static uint8_t _value_rotation = 0;
+static int16_t _height = ST7735_HEIGHT, _width = ST7735_WIDTH;
+static uint8_t _xstart = ST7735_XSTART, _ystart = ST7735_YSTART;
+
+// based on Adafruit ST7735 library for Arduino
+static const uint8_t
+init_cmds1[] = {            		// Init for 7735R, part 1 (red or green tab)
+		  15,                       // 15 commands in list:
+		  ST7735_SWRESET, DELAY,  	//  1: Software reset, 0 args, w/delay
+		  150,                    	//     150 ms delay
+		  ST7735_SLPOUT, DELAY,  	//  2: Out of sleep mode, 0 args, w/delay
+		  255,                    	//     500 ms delay
+		  ST7735_FRMCTR1, 3,		//  3: Frame rate ctrl - normal mode, 3 args:
+		  0x01, 0x2C, 0x2D,       	//     Rate = fosc/(1x2+40) * (LINE+2C+2D)
+		  ST7735_FRMCTR2, 3,  		//  4: Frame rate control - idle mode, 3 args:
+		  0x01, 0x2C, 0x2D,       	//     Rate = fosc/(1x2+40) * (LINE+2C+2D)
+		  ST7735_FRMCTR3, 6,  		//  5: Frame rate ctrl - partial mode, 6 args:
+		  0x01, 0x2C, 0x2D,       	//     Dot inversion mode
+		  0x01, 0x2C, 0x2D,       	//     Line inversion mode
+		  ST7735_INVCTR, 1,  		//  6: Display inversion ctrl, 1 arg, no delay:
+		  0x07,                   	//     No inversion
+		  ST7735_PWCTR1, 3,  		//  7: Power control, 3 args, no delay:
+		  0xA2,
+		  0x02,                   	//     -4.6V
+		  0x84,                   	//     AUTO mode
+		  ST7735_PWCTR2, 1,  		//  8: Power control, 1 arg, no delay:
+		  0xC5,                   	//     VGH25 = 2.4C VGSEL = -10 VGH = 3 * AVDD
+		  ST7735_PWCTR3, 2,  		//  9: Power control, 2 args, no delay:
+		  0x0A,                   	//     Opamp current small
+		  0x00,                   	//     Boost frequency
+		  ST7735_PWCTR4, 2,  		// 10: Power control, 2 args, no delay:
+		  0x8A,                   	//     BCLK/2, Opamp current small & Medium low
+		  0x2A,
+		  ST7735_PWCTR5, 2,  		// 11: Power control, 2 args, no delay:
+		  0x8A, 0xEE,
+		  ST7735_VMCTR1, 1,  		// 12: Power control, 1 arg, no delay:
+		  0x0E,
+		  ST7735_INVOFF, 0,  		// 13: Don't invert display, no args, no delay
+		  ST7735_MADCTL, 1,  		// 14: Memory access control (directions), 1 arg:
+		  ST7735_DATA_ROTATION,     //     row addr/col addr, bottom to top refresh
+		  ST7735_COLMOD, 1,  		// 15: set color mode, 1 arg, no delay:
+		  0x05},                 	//     16-bit color
+
+#if (defined(ST7735_IS_128X128) || defined(ST7735_IS_160X128))
+init_cmds2[] = {            // Init for 7735R, part 2 (1.44" display)
+		2,                  //  2 commands in list:
+		ST7735_CASET, 4,  	//  1: Column addr set, 4 args, no delay:
+		0x00, 0x00,         //     XSTART = 0
+		0x00, 0x7F,         //     XEND = 127
+		ST7735_RASET, 4,  	//  2: Row addr set, 4 args, no delay:
+		0x00, 0x00,         //     XSTART = 0
+		0x00, 0x7F },       //     XEND = 127
+#endif // ST7735_IS_128X128
+
+#ifdef ST7735_IS_160X80
+init_cmds2[] = {					// Init for 7735S, part 2 (160x80 display)
+		3,                        	//  3 commands in list:
+		ST7735_CASET, 4,  			//  1: Column addr set, 4 args, no delay:
+		0x00, 0x00,             	//     XSTART = 0
+		0x00, 0x4F,             	//     XEND = 79
+		ST7735_RASET, 4,  			//  2: Row addr set, 4 args, no delay:
+		0x00, 0x00,             	//     XSTART = 0
+		0x00, 0x9F ,            	//     XEND = 159
+		ST7735_INVON, 0 },        //  3: Invert colors
+#endif
+
+init_cmds3[] = {            		// Init for 7735R, part 3 (red or green tab)
+		4,                        	//  4 commands in list:
+		ST7735_GMCTRP1, 16, 		//  1: Magical unicorn dust, 16 args, no delay:
+		0x02, 0x1c, 0x07, 0x12,
+		0x37, 0x32, 0x29, 0x2d,
+		0x29, 0x25, 0x2B, 0x39,
+		0x00, 0x01, 0x03, 0x10,
+		ST7735_GMCTRN1, 16, 		//  2: Sparkles and rainbows, 16 args, no delay:
+		0x03, 0x1d, 0x07, 0x06,
+		0x2E, 0x2C, 0x29, 0x2D,
+		0x2E, 0x2E, 0x37, 0x3F,
+		0x00, 0x00, 0x02, 0x10,
+		ST7735_NORON, DELAY, 		//  3: Normal display on, no args, w/delay
+		10,                     	//     10 ms delay
+		ST7735_DISPON, DELAY, 		//  4: Main screen turn on, no args w/delay
+		100 };                  	//     100 ms delay
+
+static void ST7735_GPIO_Init(void);
+static void ST7735_WriteCommand(uint8_t cmd);
+static void ST7735_WriteData(uint8_t* buff, size_t buff_size);
+static void ST7735_ExecuteCommandList(const uint8_t *addr);
+static void ST7735_SetAddressWindow(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1);
+static void ST7735_WriteChar(uint16_t x, uint16_t y, char ch, FontDef font, uint16_t color, uint16_t bgcolor);
+
+static void ST7735_GPIO_Init(void)
 {
-    u16 color1[1];
-    u16 num;
-    color1[0]=color;
-    num=(xend-xsta)*(yend-ysta);
-    LCD_Address_Set(xsta, ysta, xend-1, yend-1); //设置显示范围
-    LCD_CS_Clr();
-    hspi2.Instance->CR1 |= SPI_CR1_DFF;//设置SPI16位传输模式
-    HAL_SPI_Transmit_DMA(&hspi2, (uint8_t*)color1, num);
-
-    while (HAL_SPI_GetState(&hspi2) != HAL_SPI_STATE_READY)
-    {
-        printf("SPI Transform Error!!!\r\n");
-    }
-
-    LCD_CS_Set();
-    hspi2.Instance->CR1 &= ~SPI_CR1_DFF;//设置SPI8位传输模式
+	MX_GPIO_Init();
 }
 
-/******************************************************************************
-      函数说明：在指定位置画点
-      入口数据：x,y 画点坐标
-                color 点的颜色
-      返回值：  无
-******************************************************************************/
-void LCD_DrawPoint(u16 x, u16 y, u16 color)
+static void ST7735_Reset()
 {
-    LCD_Address_Set(x, y, x, y); //设置光标位置
-    LCD_WR_DATA(color);
+	TFT_RES_L();
+	HAL_Delay(20);
+	TFT_RES_H();
 }
 
-
-/******************************************************************************
-      函数说明：画线
-      入口数据：x1,y1   起始坐标
-                x2,y2   终止坐标
-                color   线的颜色
-      返回值：  无
-******************************************************************************/
-void LCD_DrawLine(u16 x1, u16 y1, u16 x2, u16 y2, u16 color)
+static void ST7735_WriteCommand(uint8_t cmd)
 {
-    u16 t;
-    int xerr=0, yerr=0, delta_x, delta_y, distance;
-    int incx, incy, uRow, uCol;
-    delta_x=x2-x1; //计算坐标增量
-    delta_y=y2-y1;
-    uRow=x1;//画线起点坐标
-    uCol=y1;
+	TFT_DC_C();
+#ifdef USE_SPI_DMA
+	HAL_SPI_Transmit_DMA(&ST7735_SPI_PORT, &cmd, sizeof(cmd));
+	//while(hspi1.State == HAL_SPI_STATE_BUSY_TX);
+#else
+	HAL_SPI_Transmit(&ST7735_SPI_PORT, &cmd, sizeof(cmd), HAL_MAX_DELAY);
+#endif
+}
 
-    if (delta_x>0)incx=1; //设置单步方向
-    else if (delta_x==0)incx=0;//垂直线
-    else
+static void ST7735_WriteData(uint8_t* buff, size_t buff_size)
+{
+	TFT_DC_D();
+#ifdef USE_SPI_DMA
+	HAL_SPI_Transmit_DMA(&ST7735_SPI_PORT, buff, buff_size);
+	while(hspi1.State == HAL_SPI_STATE_BUSY_TX);
+#else
+	HAL_SPI_Transmit(&ST7735_SPI_PORT, buff, buff_size, HAL_MAX_DELAY);
+#endif
+}
+
+static void ST7735_ExecuteCommandList(const uint8_t *addr)
+{
+    uint8_t numCommands, numArgs;
+    uint16_t ms;
+
+    numCommands = *addr++;
+    while(numCommands--)
     {
-        incx=-1;
-        delta_x=-delta_x;
-    }
+    	uint8_t cmd = *addr++;
+        ST7735_WriteCommand(cmd);
 
-    if (delta_y>0)incy=1;
-    else if (delta_y==0)incy=0;//水平线
-    else
-    {
-        incy=-1;
-        delta_y=-delta_x;
-    }
-
-    if (delta_x>delta_y)distance=delta_x; //选取基本增量坐标轴
-    else distance=delta_y;
-
-    for (t=0; t<distance+1; t++)
-    {
-        LCD_DrawPoint(uRow, uCol, color); //画点
-        xerr+=delta_x;
-        yerr+=delta_y;
-
-        if (xerr>distance)
+        numArgs = *addr++;
+        // If high bit set, delay follows args
+        ms = numArgs & DELAY;
+        numArgs &= ~DELAY;
+        if(numArgs)
         {
-            xerr-=distance;
-            uRow+=incx;
+            ST7735_WriteData((uint8_t*)addr, numArgs);
+            addr += numArgs;
         }
 
-        if (yerr>distance)
+        if(ms)
         {
-            yerr-=distance;
-            uCol+=incy;
+            ms = *addr++;
+            if(ms == 255) ms = 500;
+            HAL_Delay(ms);
         }
     }
 }
 
-
-/******************************************************************************
-      函数说明：画矩形
-      入口数据：x1,y1   起始坐标
-                x2,y2   终止坐标
-                color   矩形的颜色
-      返回值：  无
-******************************************************************************/
-void LCD_DrawRectangle(u16 x1, u16 y1, u16 x2, u16 y2, u16 color)
+static void ST7735_SetAddressWindow(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
 {
-    LCD_DrawLine(x1, y1, x2, y1, color);
-    LCD_DrawLine(x1, y1, x1, y2, color);
-    LCD_DrawLine(x1, y2, x2, y2, color);
-    LCD_DrawLine(x2, y1, x2, y2, color);
+    // column address set
+    ST7735_WriteCommand(ST7735_CASET);
+    uint8_t data[] = { 0x00, x0 + _xstart, 0x00, x1 + _xstart };
+    ST7735_WriteData(data, sizeof(data));
+
+    // row address set
+    ST7735_WriteCommand(ST7735_RASET);
+    data[1] = y0 + _ystart;
+    data[3] = y1 + _ystart;
+    ST7735_WriteData(data, sizeof(data));
+
+    // write to RAM
+    ST7735_WriteCommand(ST7735_RAMWR);
 }
 
-
-/******************************************************************************
-      函数说明：画圆
-      入口数据：x0,y0   圆心坐标
-                r       半径
-                color   圆的颜色
-      返回值：  无
-******************************************************************************/
-void Draw_Circle(u16 x0, u16 y0, u8 r, u16 color)
+static void ST7735_WriteChar(uint16_t x, uint16_t y, char ch, FontDef font, uint16_t color, uint16_t bgcolor)
 {
-    int a, b;
-    a=0;
-    b=r;
+    uint32_t i, b, j;
 
-    while (a<=b)
+    ST7735_SetAddressWindow(x, y, x+font.width-1, y+font.height-1);
+
+    for(i = 0; i < font.height; i++)
     {
-        LCD_DrawPoint(x0-b, y0-a, color);           //3
-        LCD_DrawPoint(x0+b, y0-a, color);           //0
-        LCD_DrawPoint(x0-a, y0+b, color);           //1
-        LCD_DrawPoint(x0-a, y0-b, color);           //2
-        LCD_DrawPoint(x0+b, y0+a, color);           //4
-        LCD_DrawPoint(x0+a, y0-b, color);           //5
-        LCD_DrawPoint(x0+a, y0+b, color);           //6
-        LCD_DrawPoint(x0-b, y0+a, color);           //7
-        a++;
-
-        if ((a*a+b*b)>(r*r)) //判断要画的点是否过远
+        b = font.data[(ch - 32) * font.height + i];
+        for(j = 0; j < font.width; j++)
         {
-            b--;
-        }
-    }
-}
-
-/******************************************************************************
-      函数说明：显示汉字串
-      入口数据：x,y显示坐标
-                *s 要显示的汉字串
-                fc 字的颜色
-                bc 字的背景色
-                sizey 字号 可选 16 24 32
-                mode:  0非叠加模式  1叠加模式
-      返回值：  无
-******************************************************************************/
-void LCD_ShowChinese(u16 x, u16 y, u8 *s, u16 fc, u16 bc, u8 sizey, u8 mode)
-{
-    while (*s!=0)
-    {
-        if (sizey==16) LCD_ShowChinese16x16(x, y, s, fc, bc, sizey, mode);
-        else if (sizey==24) LCD_ShowChinese24x24(x, y, s, fc, bc, sizey, mode);
-        else if (sizey==32) LCD_ShowChinese32x32(x, y, s, fc, bc, sizey, mode);
-        else return;
-
-        s+=2;
-        x+=sizey;
-    }
-}
-
-/******************************************************************************
-      函数说明：显示单个16x16汉字
-      入口数据：x,y显示坐标
-                *s 要显示的汉字
-                fc 字的颜色
-                bc 字的背景色
-                sizey 字号
-                mode:  0非叠加模式  1叠加模式
-      返回值：  无
-******************************************************************************/
-void LCD_ShowChinese16x16(u16 x, u16 y, u8 *s, u16 fc, u16 bc, u8 sizey, u8 mode)
-{
-    u8 i, j;
-    u16 k;
-    u16 HZnum;//汉字数目
-    u16 TypefaceNum;//一个字符所占字节大小
-    u16 x0=x;
-    TypefaceNum=sizey/8*sizey;//此算法只适用于字宽等于字高，且字高是8的倍数的字，
-    //也建议用户使用这样大小的字,否则显示容易出问题！
-    HZnum=sizeof(tfont16)/sizeof(typFNT_GB16);  //统计汉字数目
-
-    for (k=0; k<HZnum; k++)
-    {
-        if ((tfont16[k].Index[0]==*(s))&&(tfont16[k].Index[1]==*(s+1)))
-        {
-            LCD_Address_Set(x, y, x+sizey-1, y+sizey-1);
-
-            for (i=0; i<TypefaceNum; i++)
+            if((b << j) & 0x8000)
             {
-                for (j=0; j<8; j++)
-                {
-                    if (!mode) //非叠加方式
-                    {
-                        if (tfont16[k].Msk[i]&(0x01<<j))LCD_WR_DATA(fc);
-                        else LCD_WR_DATA(bc);
-                    }
-                    else//叠加方式
-                    {
-                        if (tfont16[k].Msk[i]&(0x01<<j)) LCD_DrawPoint(x, y, fc); //画一个点
-
-                        x++;
-
-                        if ((x-x0)==sizey)
-                        {
-                            x=x0;
-                            y++;
-                            break;
-                        }
-                    }
-                }
+                uint8_t data[] = { color >> 8, color & 0xFF };
+                ST7735_WriteData(data, sizeof(data));
             }
-        }
-
-        continue;  //查找到对应点阵字库立即退出，防止多个汉字重复取模带来影响
-    }
-}
-
-
-/******************************************************************************
-      函数说明：显示单个24x24汉字
-      入口数据：x,y显示坐标
-                *s 要显示的汉字
-                fc 字的颜色
-                bc 字的背景色
-                sizey 字号
-                mode:  0非叠加模式  1叠加模式
-      返回值：  无
-******************************************************************************/
-void LCD_ShowChinese24x24(u16 x, u16 y, u8 *s, u16 fc, u16 bc, u8 sizey, u8 mode)
-{
-    u8 i, j;
-    u16 k;
-    u16 HZnum;//汉字数目
-    u16 TypefaceNum;//一个字符所占字节大小
-    u16 x0=x;
-    TypefaceNum=sizey/8*sizey;//此算法只适用于字宽等于字高，且字高是8的倍数的字，
-    //也建议用户使用这样大小的字,否则显示容易出问题！
-    HZnum=sizeof(tfont24)/sizeof(typFNT_GB24);  //统计汉字数目
-
-    for (k=0; k<HZnum; k++)
-    {
-        if ((tfont24[k].Index[0]==*(s))&&(tfont24[k].Index[1]==*(s+1)))
-        {
-            LCD_Address_Set(x, y, x+sizey-1, y+sizey-1);
-
-            for (i=0; i<TypefaceNum; i++)
+            else
             {
-                for (j=0; j<8; j++)
-                {
-                    if (!mode) //非叠加方式
-                    {
-                        if (tfont24[k].Msk[i]&(0x01<<j))LCD_WR_DATA(fc);
-                        else LCD_WR_DATA(bc);
-                    }
-                    else//叠加方式
-                    {
-                        if (tfont24[k].Msk[i]&(0x01<<j)) LCD_DrawPoint(x, y, fc); //画一个点
-
-                        x++;
-
-                        if ((x-x0)==sizey)
-                        {
-                            x=x0;
-                            y++;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        continue;  //查找到对应点阵字库立即退出，防止多个汉字重复取模带来影响
-    }
-}
-
-/******************************************************************************
-      函数说明：显示单个32x32汉字
-      入口数据：x,y显示坐标
-                *s 要显示的汉字
-                fc 字的颜色
-                bc 字的背景色
-                sizey 字号
-                mode:  0非叠加模式  1叠加模式
-      返回值：  无
-******************************************************************************/
-void LCD_ShowChinese32x32(u16 x, u16 y, u8 *s, u16 fc, u16 bc, u8 sizey, u8 mode)
-{
-    u8 i, j;
-    u16 k;
-    u16 HZnum;//汉字数目
-    u16 TypefaceNum;//一个字符所占字节大小
-    u16 x0=x;
-    TypefaceNum=sizey/8*sizey;//此算法只适用于字宽等于字高，且字高是8的倍数的字，
-    //也建议用户使用这样大小的字,否则显示容易出问题！
-    HZnum=sizeof(tfont32)/sizeof(typFNT_GB32);  //统计汉字数目
-
-    for (k=0; k<HZnum; k++)
-    {
-        if ((tfont32[k].Index[0]==*(s))&&(tfont32[k].Index[1]==*(s+1)))
-        {
-            LCD_Address_Set(x, y, x+sizey-1, y+sizey-1);
-
-            for (i=0; i<TypefaceNum; i++)
-            {
-                for (j=0; j<8; j++)
-                {
-                    if (!mode) //非叠加方式
-                    {
-                        if (tfont32[k].Msk[i]&(0x01<<j))LCD_WR_DATA(fc);
-                        else LCD_WR_DATA(bc);
-                    }
-                    else//叠加方式
-                    {
-                        if (tfont32[k].Msk[i]&(0x01<<j)) LCD_DrawPoint(x, y, fc); //画一个点
-
-                        x++;
-
-                        if ((x-x0)==sizey)
-                        {
-                            x=x0;
-                            y++;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        continue;  //查找到对应点阵字库立即退出，防止多个汉字重复取模带来影响
-    }
-}
-
-
-/******************************************************************************
-      函数说明：显示单个字符
-      入口数据：x,y显示坐标
-                num 要显示的字符
-                fc 字的颜色
-                bc 字的背景色
-                sizey 字号
-                mode:  0非叠加模式  1叠加模式
-      返回值：  无
-******************************************************************************/
-void LCD_ShowChar(u16 x, u16 y, u8 num, u16 fc, u16 bc, u8 sizey, u8 mode)
-{
-    u8 temp, sizex, t;
-    u16 i, TypefaceNum; //一个字符所占字节大小
-    u16 x0=x;
-    sizex=sizey/2;
-    TypefaceNum=sizex/8*sizey;
-    num=num-' ';    //得到偏移后的值
-    LCD_Address_Set(x, y, x+sizex-1, y+sizey-1); //设置光标位置
-
-    for (i=0; i<TypefaceNum; i++)
-    {
-        if (sizey==16)temp=ascii_1608[num][i];             //调用8x16字体
-        else if (sizey==32)temp=ascii_3216[num][i];      //调用16x32字体
-        else return;
-
-        for (t=0; t<8; t++)
-        {
-            if (!mode) //非叠加模式
-            {
-                if (temp&(0x01<<t))LCD_WR_DATA(fc);
-                else LCD_WR_DATA(bc);
-            }
-            else//叠加模式
-            {
-                if (temp&(0x01<<t))LCD_DrawPoint(x, y, fc); //画一个点
-
-                x++;
-
-                if ((x-x0)==sizex)
-                {
-                    x=x0;
-                    y++;
-                    break;
-                }
+                uint8_t data[] = { bgcolor >> 8, bgcolor & 0xFF };
+                ST7735_WriteData(data, sizeof(data));
             }
         }
     }
 }
 
-
-/******************************************************************************
-      函数说明：显示字符串
-      入口数据：x,y显示坐标
-                *p 要显示的字符串
-                fc 字的颜色
-                bc 字的背景色
-                sizey 字号
-                mode:  0非叠加模式  1叠加模式
-      返回值：  无
-******************************************************************************/
-void LCD_ShowString(u16 x, u16 y, const u8 *p, u16 fc, u16 bc, u8 sizey, u8 mode)
+void ST7735_Init(void)
 {
-    while (*p!='\0')
-    {
-        LCD_ShowChar(x, y, *p, fc, bc, sizey, mode);
-        x+=sizey/2;
-        p++;
-    }
+	ST7735_GPIO_Init();
+	TFT_CS_L();
+    ST7735_Reset();
+    ST7735_ExecuteCommandList(init_cmds1);
+    ST7735_ExecuteCommandList(init_cmds2);
+    ST7735_ExecuteCommandList(init_cmds3);
+    TFT_CS_H();
 }
 
-
-/******************************************************************************
-      函数说明：显示数字
-      入口数据：m底数，n指数
-      返回值：  无
-******************************************************************************/
-u32 mypow(u8 m, u8 n)
+void ST7735_DrawPixel(uint16_t x, uint16_t y, uint16_t color)
 {
-    u32 result=1;
+    if((x >= _width) || (y >= _height))
+        return;
 
-    while (n--)result*=m;
+    TFT_CS_L();
 
-    return result;
+    ST7735_SetAddressWindow(x, y, x+1, y+1);
+    uint8_t data[] = { color >> 8, color & 0xFF };
+    ST7735_WriteData(data, sizeof(data));
+
+    TFT_CS_H();
 }
 
-
-/******************************************************************************
-      函数说明：显示整数变量
-      入口数据：x,y显示坐标
-                num 要显示整数变量
-                len 要显示的位数
-                fc 字的颜色
-                bc 字的背景色
-                sizey 字号
-      返回值：  无
-******************************************************************************/
-void LCD_ShowIntNum(u16 x, u16 y, u16 num, u8 len, u16 fc, u16 bc, u8 sizey)
+void ST7735_DrawString(uint16_t x, uint16_t y, const char* str, FontDef font, uint16_t color, uint16_t bgcolor)
 {
-    u8 t, temp;
-    u8 enshow=0;
-    u8 sizex=sizey/2;
+	TFT_CS_L();
 
-    for (t=0; t<len; t++)
+    while(*str)
     {
-        temp=(num/mypow(10, len-t-1))%10;
-
-        if (enshow==0&&t<(len-1))
+        if(x + font.width >= _width)
         {
-            if (temp==0)
+            x = 0;
+            y += font.height;
+            if(y + font.height >= _height)
             {
-                LCD_ShowChar(x+t*sizex, y, ' ', fc, bc, sizey, 0);
+                break;
+            }
+
+            if(*str == ' ')
+            {
+                // skip spaces in the beginning of the new line
+                str++;
                 continue;
             }
-            else enshow=1;
-
         }
 
-        LCD_ShowChar(x+t*sizex, y, temp+48, fc, bc, sizey, 0);
+        ST7735_WriteChar(x, y, *str, font, color, bgcolor);
+        x += font.width;
+        str++;
     }
+    TFT_CS_H();
 }
 
-
-/******************************************************************************
-      函数说明：显示两位小数变量
-      入口数据：x,y显示坐标
-                num 要显示小数变量
-                len 要显示的位数
-                fc 字的颜色
-                bc 字的背景色
-                sizey 字号
-      返回值：  无
-******************************************************************************/
-void LCD_ShowFloatNum1(u16 x, u16 y, float num, u8 len, u16 fc, u16 bc, u8 sizey)
+void ST7735_FillRectangle(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color)
 {
-    u8 t, temp, sizex;
-    u16 num1;
-    sizex=sizey/2;
-    num1=num*100;
+    // clipping
+    if((x >= _width) || (y >= _height)) return;
+    if((x + w - 1) >= _width) w = _width - x;
+    if((y + h - 1) >= _height) h = _height - y;
 
-    for (t=0; t<len; t++)
+    TFT_CS_L();
+    ST7735_SetAddressWindow(x, y, x+w-1, y+h-1);
+
+    uint8_t data[] = { color >> 8, color & 0xFF };
+    TFT_DC_D();
+    for(y = h; y > 0; y--)
     {
-        temp=(num1/mypow(10, len-t-1))%10;
-
-        if (t==(len-2))
+        for(x = w; x > 0; x--)
         {
-            LCD_ShowChar(x+(len-2)*sizex, y, '.', fc, bc, sizey, 0);
-            t++;
-            len+=1;
+#ifdef USE_SPI_DMA
+        	HAL_SPI_Transmit_DMA(&ST7735_SPI_PORT, data, sizeof(data));
+        	//while(hspi1.State == HAL_SPI_STATE_BUSY_TX);
+#else
+        	HAL_SPI_Transmit(&ST7735_SPI_PORT, data, sizeof(data), HAL_MAX_DELAY);
+#endif
         }
-
-        LCD_ShowChar(x+t*sizex, y, temp+48, fc, bc, sizey, 0);
     }
+    TFT_CS_H();
 }
 
-
-/******************************************************************************
-      函数说明：显示图片
-      入口数据：x,y起点坐标
-                length 图片长度
-                width  图片宽度
-                pic[]  图片数组
-      返回值：  无
-******************************************************************************/
-void LCD_ShowPicture(u16 x, u16 y, u16 length, u16 width, const u8 pic[])
+void ST7735_FillScreen(uint16_t color)
 {
-    u16 num;
-    num=length*width*2;
-    LCD_Address_Set(x, y, x+length-1, y+width-1);
-    LCD_CS_Clr();
-    HAL_SPI_Transmit_DMA(&hspi2, (uint8_t*)pic, num);
-
-    while (HAL_SPI_GetState(&hspi2) != HAL_SPI_STATE_READY)
-    {
-        printf("SPI Transform Picture Error!!!\r\n");
-    }
-    LCD_CS_Set();
+    ST7735_FillRectangle(0, 0, _width, _height, color);
 }
+
+void ST7735_DrawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint16_t* data)
+{
+    if((x >= _width) || (y >= _height)) return;
+    if((x + w - 1) >= _width) return;
+    if((y + h - 1) >= _height) return;
+
+    TFT_CS_L();
+    ST7735_SetAddressWindow(x, y, x+w-1, y+h-1);
+    ST7735_WriteData((uint8_t*)data, sizeof(uint16_t)*w*h);
+    TFT_CS_H();
+}
+
+void ST7735_DrawTouchGFX(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint16_t* data)
+{
+    if((x >= _width) || (y >= _height)) return;
+    if((x + w - 1) >= _width) return;
+    if((y + h - 1) >= _height) return;
+
+    TFT_CS_L();
+    ST7735_SetAddressWindow(x, y, x+w-1, y+h-1);
+
+    uint32_t size = w * h;
+    uint8_t colorBytes[size][2];
+
+    for (uint32_t i = 0; i < size; i++)
+	{
+		colorBytes[i][0] = (*data & 0xFF00) >> 8;
+		colorBytes[i][1] = *data & 0x00FF;
+		data++;
+	}
+
+    TFT_DC_D();
+	ST7735_WriteData((uint8_t*) &colorBytes, size * 2);
+    TFT_CS_H();
+}
+
+void ST7735_InvertColors(bool invert)
+{
+	TFT_CS_L();
+    ST7735_WriteCommand(invert ? ST7735_INVON : ST7735_INVOFF);
+    TFT_CS_H();
+}
+
+void ST7735_Backlight_On(void)
+{
+	TFT_BL_H();
+}
+
+void ST7735_Backlight_Off(void)
+{
+	TFT_BL_L();
+}
+
+/***************************************************************************************
+** Function name:           drawCircle
+** Description:             Draw a circle outline
+***************************************************************************************/
+void ST7735_DrawCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color)
+{
+  int16_t f = 1 - r;
+  int16_t ddF_x = 1;
+  int16_t ddF_y = - r - r;
+  int16_t x = 0;
+
+  ST7735_DrawPixel(x0 + r, y0  , color);
+  ST7735_DrawPixel(x0 - r, y0  , color);
+  ST7735_DrawPixel(x0  , y0 - r, color);
+  ST7735_DrawPixel(x0  , y0 + r, color);
+
+  while (x < r)
+  {
+    if (f >= 0)
+    {
+      r--;
+      ddF_y += 2;
+      f += ddF_y;
+    }
+    x++;
+    ddF_x += 2;
+    f += ddF_x;
+
+    ST7735_DrawPixel(x0 + x, y0 + r, color);
+    ST7735_DrawPixel(x0 - x, y0 + r, color);
+    ST7735_DrawPixel(x0 - x, y0 - r, color);
+    ST7735_DrawPixel(x0 + x, y0 - r, color);
+
+    ST7735_DrawPixel(x0 + r, y0 + x, color);
+    ST7735_DrawPixel(x0 - r, y0 + x, color);
+    ST7735_DrawPixel(x0 - r, y0 - x, color);
+    ST7735_DrawPixel(x0 + r, y0 - x, color);
+  }
+}
+
+/***************************************************************************************
+** Function name:           drawCircleHelper
+** Description:             Support function for circle drawing
+***************************************************************************************/
+void ST7735_DrawCircleHelper( int16_t x0, int16_t y0, int16_t r, uint8_t cornername, uint16_t color)
+{
+  int16_t f     = 1 - r;
+  int16_t ddF_x = 1;
+  int16_t ddF_y = -2 * r;
+  int16_t x     = 0;
+
+  while (x < r)
+  {
+    if (f >= 0)
+    {
+      r--;
+      ddF_y += 2;
+      f     += ddF_y;
+    }
+    x++;
+    ddF_x += 2;
+    f     += ddF_x;
+    if (cornername & 0x8)
+    {
+      ST7735_DrawPixel(x0 - r, y0 + x, color);
+      ST7735_DrawPixel(x0 - x, y0 + r, color);
+    }
+    if (cornername & 0x4)
+    {
+    	ST7735_DrawPixel(x0 + x, y0 + r, color);
+    	ST7735_DrawPixel(x0 + r, y0 + x, color);
+    }
+    if (cornername & 0x2)
+    {
+    	ST7735_DrawPixel(x0 + r, y0 - x, color);
+    	ST7735_DrawPixel(x0 + x, y0 - r, color);
+    }
+    if (cornername & 0x1)
+    {
+    	ST7735_DrawPixel(x0 - x, y0 - r, color);
+    	ST7735_DrawPixel(x0 - r, y0 - x, color);
+    }
+
+  }
+}
+
+/***************************************************************************************
+** Function name:           fillCircle
+** Description:             draw a filled circle
+***************************************************************************************/
+void ST7735_FillCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color)
+{
+	ST7735_DrawFastVLine(x0, y0 - r, r + r + 1, color);
+	ST7735_FillCircleHelper(x0, y0, r, 3, 0, color);
+}
+
+/***************************************************************************************
+** Function name:           fillCircleHelper
+** Description:             Support function for filled circle drawing
+***************************************************************************************/
+// Used to do circles and roundrects
+void ST7735_FillCircleHelper(int16_t x0, int16_t y0, int16_t r, uint8_t cornername, int16_t delta, uint16_t color)
+{
+  int16_t f     = 1 - r;
+  int16_t ddF_x = 1;
+  int16_t ddF_y = -r - r;
+  int16_t x     = 0;
+
+  delta++;
+  while (x < r)
+  {
+    if (f >= 0)
+    {
+      r--;
+      ddF_y += 2;
+      f     += ddF_y;
+    }
+    x++;
+    ddF_x += 2;
+    f     += ddF_x;
+
+    if (cornername & 0x1)
+    {
+    	ST7735_DrawFastVLine(x0 + x, y0 - r, r + r + delta, color);
+    	ST7735_DrawFastVLine(x0 + r, y0 - x, x + x + delta, color);
+    }
+    if (cornername & 0x2)
+    {
+    	ST7735_DrawFastVLine(x0 - x, y0 - r, r + r + delta, color);
+    	ST7735_DrawFastVLine(x0 - r, y0 - x, x + x + delta, color);
+    }
+  }
+}
+
+/***************************************************************************************
+** Function name:           drawEllipse
+** Description:             Draw a ellipse outline
+***************************************************************************************/
+void ST7735_DrawEllipse(int16_t x0, int16_t y0, int16_t rx, int16_t ry, uint16_t color)
+{
+  if (rx < 2) return;
+  if (ry < 2) return;
+  int16_t x, y;
+  int32_t rx2 = rx * rx;
+  int32_t ry2 = ry * ry;
+  int32_t fx2 = 4 * rx2;
+  int32_t fy2 = 4 * ry2;
+  int32_t s;
+
+  for (x = 0, y = ry, s = 2 * ry2 + rx2 * (1-2 * ry); ry2 * x <= rx2 * y; x++)
+  {
+	  ST7735_DrawPixel(x0 + x, y0 + y, color);
+	  ST7735_DrawPixel(x0 - x, y0 + y, color);
+	  ST7735_DrawPixel(x0 - x, y0 - y, color);
+	  ST7735_DrawPixel(x0 + x, y0 - y, color);
+    if (s >= 0)
+    {
+      s += fx2 * (1 - y);
+      y--;
+    }
+    s += ry2 * ((4 * x) + 6);
+  }
+
+  for (x = rx, y = 0, s = 2 * rx2 + ry2 * (1 - 2 * rx); rx2 * y <= ry2 * x; y++)
+  {
+	  ST7735_DrawPixel(x0 + x, y0 + y, color);
+	  ST7735_DrawPixel(x0 - x, y0 + y, color);
+	  ST7735_DrawPixel(x0 - x, y0 - y, color);
+	  ST7735_DrawPixel(x0 + x, y0 - y, color);
+	if (s >= 0)
+	{
+	  s += fy2 * (1 - x);
+	  x--;
+	}
+	s += rx2 * ((4 * y) + 6);
+  }
+}
+
+/***************************************************************************************
+** Function name:           fillEllipse
+** Description:             draw a filled ellipse
+***************************************************************************************/
+void ST7735_FillEllipse(int16_t x0, int16_t y0, int16_t rx, int16_t ry, uint16_t color)
+{
+  if (rx < 2) return;
+  if (ry < 2) return;
+  int16_t x, y;
+  int32_t rx2 = rx * rx;
+  int32_t ry2 = ry * ry;
+  int32_t fx2 = 4 * rx2;
+  int32_t fy2 = 4 * ry2;
+  int32_t s;
+
+  for (x = 0, y = ry, s = 2 * ry2 + rx2 * (1 - 2 * ry); ry2 * x <= rx2 * y; x++)
+  {
+    ST7735_DrawFastHLine(x0 - x, y0 - y, x + x + 1, color);
+    ST7735_DrawFastHLine(x0 - x, y0 + y, x + x + 1, color);
+
+    if (s >= 0)
+    {
+      s += fx2 * (1 - y);
+      y--;
+    }
+    s += ry2 * ((4 * x) + 6);
+  }
+
+  for (x = rx, y = 0, s = 2 * rx2 + ry2 * (1 - 2 * rx); rx2 * y <= ry2 * x; y++)
+  {
+    ST7735_DrawFastHLine(x0 - x, y0 - y, x + x + 1, color);
+    ST7735_DrawFastHLine(x0 - x, y0 + y, x + x + 1, color);
+
+    if (s >= 0)
+    {
+      s += fy2 * (1 - x);
+      x--;
+    }
+    s += rx2 * ((4 * y) + 6);
+  }
+
+}
+
+/***************************************************************************************
+** Function name:           drawRect
+** Description:             Draw a rectangle outline
+***************************************************************************************/
+// Draw a rectangle
+void ST7735_DrawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color)
+{
+  ST7735_DrawFastHLine(x, y, w, color);
+  ST7735_DrawFastHLine(x, y + h - 1, w, color);
+  ST7735_DrawFastVLine(x, y, h, color);
+  ST7735_DrawFastVLine(x + w - 1, y, h, color);
+}
+
+/***************************************************************************************
+** Function name:           drawRoundRect
+** Description:             Draw a rounded corner rectangle outline
+***************************************************************************************/
+// Draw a rounded rectangle
+void ST7735_DrawRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t color)
+{
+  // smarter version
+  ST7735_DrawFastHLine(x + r  , y    , w - r - r, color); // Top
+  ST7735_DrawFastHLine(x + r  , y + h - 1, w - r - r, color); // Bottom
+  ST7735_DrawFastVLine(x    , y + r  , h - r - r, color); // Left
+  ST7735_DrawFastVLine(x + w - 1, y + r  , h - r - r, color); // Right
+  // draw four corners
+  ST7735_DrawCircleHelper(x + r    , y + r    , r, 1, color);
+  ST7735_DrawCircleHelper(x + r    , y + h - r - 1, r, 8, color);
+  ST7735_DrawCircleHelper(x + w - r - 1, y + r    , r, 2, color);
+  ST7735_DrawCircleHelper(x + w - r - 1, y + h - r - 1, r, 4, color);
+}
+
+/***************************************************************************************
+** Function name:           fillRoundRect
+** Description:             Draw a rounded corner filled rectangle
+***************************************************************************************/
+// Fill a rounded rectangle
+void ST7735_FillRoundRect(int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint16_t color)
+{
+  // smarter version
+  ST7735_FillRectangle(x + r, y, w - r - r, h, color);
+
+  // draw four corners
+  ST7735_FillCircleHelper(x + w - r - 1, y + r, r, 1, h - r - r - 1, color);
+  ST7735_FillCircleHelper(x + r    , y + r, r, 2, h - r - r - 1, color);
+}
+
+/***************************************************************************************
+** Function name:           drawTriangle
+** Description:             Draw a triangle outline using 3 arbitrary points
+***************************************************************************************/
+// Draw a triangle
+void ST7735_DrawTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color)
+{
+  ST7735_DrawLine(x0, y0, x1, y1, color);
+  ST7735_DrawLine(x1, y1, x2, y2, color);
+  ST7735_DrawLine(x2, y2, x0, y0, color);
+}
+
+/***************************************************************************************
+** Function name:           fillTriangle
+** Description:             Draw a filled triangle using 3 arbitrary points
+***************************************************************************************/
+// Fill a triangle - original Adafruit function works well and code footprint is small
+void ST7735_FillTriangle( int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color)
+{
+  int16_t a, b, y, last;
+
+  // Sort coordinates by Y order (y2 >= y1 >= y0)
+  if (y0 > y1)
+  {
+	  SWAP_INT16_T(y0, y1); SWAP_INT16_T(x0, x1);
+  }
+
+  if (y1 > y2)
+  {
+	  SWAP_INT16_T(y2, y1); SWAP_INT16_T(x2, x1);
+  }
+
+  if (y0 > y1)
+  {
+	  SWAP_INT16_T(y0, y1); SWAP_INT16_T(x0, x1);
+  }
+
+  if (y0 == y2)
+  { // Handle awkward all-on-same-line case as its own thing
+    a = b = x0;
+    if (x1 < a)      a = x1;
+    else if (x1 > b) b = x1;
+    if (x2 < a)      a = x2;
+    else if (x2 > b) b = x2;
+    ST7735_DrawFastHLine(a, y0, b - a + 1, color);
+    return;
+  }
+
+  int16_t
+  dx01 = x1 - x0,
+  dy01 = y1 - y0,
+  dx02 = x2 - x0,
+  dy02 = y2 - y0,
+  dx12 = x2 - x1,
+  dy12 = y2 - y1,
+  sa   = 0,
+  sb   = 0;
+
+  // For upper part of triangle, find scanline crossings for segments
+  // 0-1 and 0-2.  If y1=y2 (flat-bottomed triangle), the scanline y1
+  // is included here (and second loop will be skipped, avoiding a /0
+  // error there), otherwise scanline y1 is skipped here and handled
+  // in the second loop...which also avoids a /0 error here if y0=y1
+  // (flat-topped triangle).
+  if (y1 == y2) last = y1;  // Include y1 scanline
+  else         last = y1 - 1; // Skip it
+
+  for (y = y0; y <= last; y++)
+  {
+    a   = x0 + sa / dy01;
+    b   = x0 + sb / dy02;
+    sa += dx01;
+    sb += dx02;
+
+    if (a > b) SWAP_INT16_T(a, b);
+    ST7735_DrawFastHLine(a, y, b - a + 1, color);
+  }
+
+  // For lower part of triangle, find scanline crossings for segments
+  // 0-2 and 1-2.  This loop is skipped if y1=y2.
+  sa = dx12 * (y - y1);
+  sb = dx02 * (y - y0);
+  for (; y <= y2; y++)
+  {
+    a   = x1 + sa / dy12;
+    b   = x0 + sb / dy02;
+    sa += dx12;
+    sb += dx02;
+
+    if (a > b) SWAP_INT16_T(a, b);
+    ST7735_DrawFastHLine(a, y, b - a + 1, color);
+  }
+}
+
+/***************************************************************************************
+** Function name:           drawLine
+** Description:             draw a line between 2 arbitrary points
+***************************************************************************************/
+
+// Slower but more compact line drawing function
+void ST7735_DrawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color)
+{
+	int16_t steep = abs(y1 - y0) > abs(x1 - x0);
+	if (steep)
+	{
+		SWAP_INT16_T(x0, y0);
+		SWAP_INT16_T(x1, y1);
+	}
+
+	if (x0 > x1)
+	{
+		SWAP_INT16_T(x0, x1);
+		SWAP_INT16_T(y0, y1);
+	}
+
+	int16_t dx, dy;
+	dx = x1 - x0;
+	dy = abs(y1 - y0);
+
+	int16_t err = dx / 2;
+	int16_t ystep;
+
+	if (y0 < y1)
+	{
+		ystep = 1;
+	}
+	else
+	{
+		ystep = -1;
+	}
+
+	for (; x0<=x1; x0++)
+	{
+		if (steep)
+		{
+			ST7735_DrawPixel(y0, x0, color);
+		}
+		else
+		{
+			ST7735_DrawPixel(x0, y0, color);
+		}
+		err -= dy;
+		if (err < 0)
+		{
+			y0 += ystep;
+			err += dx;
+		}
+	}
+}
+
+/***************************************************************************************
+** Function name:           drawFastVLine
+** Description:             draw a vertical line
+***************************************************************************************/
+void ST7735_DrawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color)
+{
+  // Rudimentary clipping
+  if ((x >= _width) || (y >= _height)) return;
+  if ((y + h - 1) >= _height) h = _height - y;
+
+  ST7735_DrawLine(x, y, x, y + h - 1, color);
+}
+
+/***************************************************************************************
+** Function name:           drawFastHLine
+** Description:             draw a horizontal line
+***************************************************************************************/
+void ST7735_DrawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color)
+{
+  // Rudimentary clipping
+  if ((x >= _width) || (y >= _height)) return;
+  if ((x + w - 1) >= _width)  w = _width - x;
+
+  ST7735_DrawLine(x, y, x + w - 1, y, color);
+}
+
+/***************************************************************************************
+** Function name:           setRotation
+** Description:             rotate the screen orientation m = 0-3
+***************************************************************************************/
+void ST7735_SetRotation(uint8_t m)
+{
+  _value_rotation = m % 4;
+
+  TFT_CS_L();
+
+  ST7735_WriteCommand(ST7735_MADCTL);
+
+  switch (_value_rotation)
+  {
+    case 0:
+    {
+    	uint8_t d_r = (_data_rotation[0] | _data_rotation[1] | _data_rotation[3]);
+    	ST7735_WriteData(&d_r, sizeof(d_r));
+        _width  = ST7735_WIDTH;
+        _height = ST7735_HEIGHT;
+        _xstart = ST7735_XSTART;
+		_ystart = ST7735_YSTART;
+    }
+     break;
+    case 1:
+    {
+    	uint8_t d_r = (_data_rotation[1] | _data_rotation[2] | _data_rotation[3]);
+    	ST7735_WriteData(&d_r, sizeof(d_r));
+    	_width  = ST7735_HEIGHT;
+    	_height = ST7735_WIDTH;
+    	_xstart = ST7735_YSTART;
+    	_ystart = ST7735_XSTART;
+    }
+      break;
+    case 2:
+    {
+    	uint8_t d_r = _data_rotation[3];
+    	ST7735_WriteData(&d_r, sizeof(d_r));
+    	_width  = ST7735_WIDTH;
+    	_height = ST7735_HEIGHT;
+    	_xstart = ST7735_XSTART;
+    	_ystart = ST7735_YSTART;
+    }
+      break;
+    case 3:
+    {
+    	uint8_t d_r = (_data_rotation[0] | _data_rotation[2] | _data_rotation[3]);
+    	ST7735_WriteData(&d_r, sizeof(d_r));
+    	_width  = ST7735_HEIGHT;
+    	_height = ST7735_WIDTH;
+    	_xstart = ST7735_YSTART;
+    	_ystart = ST7735_XSTART;
+    }
+      break;
+  }
+  TFT_CS_H();
+}
+
+uint8_t ST7735_GetRotation(void)
+{
+  return _value_rotation;
+}
+
+int16_t ST7735_GetHeight(void)
+{
+	return _height;
+}
+
+int16_t ST7735_GetWidth(void)
+{
+	return _width;
+}
+
+
+
+
 
 
