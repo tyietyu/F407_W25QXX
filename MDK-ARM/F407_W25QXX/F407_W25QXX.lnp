@@ -45,6 +45,9 @@
 "f407_w25qxx\syscall.o"
 "f407_w25qxx\lcd.o"
 "f407_w25qxx\fonts.o"
+"f407_w25qxx\bsp_uart_fifo.o"
+"f407_w25qxx\modbus_slave.o"
+"f407_w25qxx\bsp_msg.o"
 --library_type=microlib --strict --scatter "F407_W25QXX\F407_W25QXX.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers

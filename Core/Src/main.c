@@ -34,6 +34,7 @@
 #include "pic.h"
 #include "sdio_sdcard.h"
 #include "w25qxx.h"
+#include "modbus_slave.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -129,6 +130,7 @@ int main(void)
   MX_FATFS_Init();
   MX_USART1_UART_Init();
   MX_USB_OTG_FS_PCD_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
     SPIF_Init(&hSPIF, &hspi1, SPI_CS_GPIO_Port, SPI_CS_Pin);
     SD_Driver.disk_initialize(0);
