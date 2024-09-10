@@ -880,7 +880,10 @@ int16_t ST7735_GetWidth(void)
 	return _width;
 }
 
-
+void ST7735_SetWindow(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
+{
+  ST7735_SetAddressWindow(x0, y0, x1, y1);
+}
 
 
 

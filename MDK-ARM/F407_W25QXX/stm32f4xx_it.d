@@ -41,6 +41,3 @@ f407_w25qxx\stm32f4xx_it.o: D:\Program\Keil\ARM\ARMCC\Bin\..\include\stdio.h
 f407_w25qxx\stm32f4xx_it.o: D:\Program\Keil\ARM\ARMCC\Bin\..\include\string.h
 f407_w25qxx\stm32f4xx_it.o: D:\Program\Keil\ARM\ARMCC\Bin\..\include\stdbool.h
 f407_w25qxx\stm32f4xx_it.o: ../Core/Inc/stm32f4xx_it.h
-f407_w25qxx\stm32f4xx_it.o: ../OV7725/ov7725.h
-f407_w25qxx\stm32f4xx_it.o: ../OV7725/sccb.h
-f407_w25qxx\stm32f4xx_it.o: ../Core/Inc/gpio.h
