@@ -1,4 +1,4 @@
-# STM32F407的OV7725项目
+# STM32F407VET6 + OV7725的Camera驱动
 
 ## 包含的驱动：
   SDFats
